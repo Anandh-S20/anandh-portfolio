@@ -6,7 +6,8 @@ export const portfolio = {
     "Keeping businesses running — from service desks and networks to servers and security.",
   location: "Kochi, Kerala, India",
   email: "anandhsaji287@gmail.com",
-  phone: "+91 88481 20533",
+  linkedin: "https://www.linkedin.com/in/anandh-saji/",
+  instagram: "https://www.instagram.com/anandh_202x",
   github: "https://github.com/Anandh-S20",
   about:
     "I'm an IT Administrator at Aries Group of Companies with hands-on experience across L1/L2 Windows support, networking, printers, and IT infrastructure. I handle service desk support through Freshworks ITSM, Office 365 administration, Kyocera printer setups, LAN/Wi-Fi troubleshooting, CCTV systems, and IT asset management — along with cloud-based data backup, Firebase, and AWS EC2. I enjoy solving real problems for real users and keeping the systems behind a business healthy.",
