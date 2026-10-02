@@ -5,22 +5,22 @@ export default function Hero() {
     <section id="top" className="relative overflow-hidden pt-36 pb-24 sm:pt-44">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_-10%,rgba(16,185,129,0.12),transparent)]"
+        className="animate-fade-in pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_-10%,rgba(16,185,129,0.12),transparent)]"
       />
       <div className="relative mx-auto max-w-5xl px-5">
-        <p className="font-mono text-sm text-emerald-600 dark:text-emerald-400">
+        <p className="animate-fade-up font-mono text-sm text-emerald-600 dark:text-emerald-400">
           <span className="text-slate-500">$</span> whoami
         </p>
-        <h1 className="mt-4 text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-6xl">
+        <h1 className="animate-fade-up anim-delay-1 mt-4 text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-6xl">
           {portfolio.name}
         </h1>
-        <p className="mt-3 text-xl font-medium text-emerald-600 dark:text-emerald-400 sm:text-2xl">
+        <p className="animate-fade-up anim-delay-2 mt-3 text-xl font-medium text-emerald-600 dark:text-emerald-400 sm:text-2xl">
           {portfolio.headline}
         </p>
-        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-slate-500 dark:text-slate-400">
+        <p className="animate-fade-up anim-delay-3 mt-5 max-w-2xl text-lg leading-relaxed text-slate-500 dark:text-slate-400">
           {portfolio.tagline}
         </p>
-        <div className="mt-8 flex flex-wrap gap-4">
+        <div className="animate-fade-up anim-delay-4 mt-8 flex flex-wrap gap-4">
           <a
             href="#contact"
             className="rounded-md bg-emerald-500 px-6 py-3 font-semibold text-[#0b0f14] transition hover:bg-emerald-400"
@@ -34,7 +34,7 @@ export default function Hero() {
             View Experience
           </a>
         </div>
-        <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 font-mono text-sm text-slate-500">
+        <div className="animate-fade-up anim-delay-5 mt-10 flex flex-wrap gap-x-6 gap-y-2 font-mono text-sm text-slate-500">
           <span>📍 {portfolio.location}</span>
           <span>💼 Open to opportunities</span>
         </div>
