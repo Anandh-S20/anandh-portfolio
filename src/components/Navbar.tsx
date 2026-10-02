@@ -66,7 +66,7 @@ export default function Navbar() {
           : "bg-transparent"
       }`}
     >
-      <nav className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
+      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5">
         <a href="#top" className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400">
           anandh<span className="text-slate-900 dark:text-white">.s</span>
           <span className="animate-pulse text-emerald-600 dark:text-emerald-400">_</span>

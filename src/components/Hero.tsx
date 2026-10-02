@@ -7,7 +7,7 @@ export default function Hero() {
         aria-hidden
         className="animate-fade-in pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_-10%,rgba(16,185,129,0.12),transparent)]"
       />
-      <div className="relative mx-auto max-w-5xl px-5">
+      <div className="relative mx-auto max-w-7xl px-5">
         <p className="animate-fade-up font-mono text-sm text-emerald-600 dark:text-emerald-400">
           <span className="text-slate-500">$</span> whoami
         </p>

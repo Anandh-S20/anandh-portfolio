@@ -2,7 +2,7 @@ import { portfolio } from "@/data/portfolio";
 
 export default function Education() {
   return (
-    <section id="education" className="mx-auto max-w-5xl scroll-mt-20 px-5 py-16">
+    <section id="education" className="mx-auto max-w-7xl scroll-mt-20 px-5 py-16">
       <h2 className="font-mono text-sm font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
         <span className="text-slate-500">05.</span> Education & Certifications
       </h2>
