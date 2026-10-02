@@ -16,7 +16,7 @@ export default function Projects() {
               <span className="font-mono text-2xl text-emerald-600 dark:text-emerald-400/80">▚</span>
               <span className="font-mono text-xs text-slate-500 dark:text-slate-600">~/projects</span>
             </div>
-            <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white transition group-hover:text-emerald-600 dark:hover:text-emerald-600 dark:text-emerald-400">
+            <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white transition group-hover:text-emerald-600 dark:group-hover:text-emerald-400">
               {p.name}
             </h3>
             <p className="mt-2 flex-1 leading-relaxed text-slate-500 dark:text-slate-400">{p.description}</p>

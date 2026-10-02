@@ -15,7 +15,7 @@ export default function Skills() {
             <h3 className="font-mono text-sm font-semibold text-emerald-700 dark:text-emerald-300">{g.group}</h3>
             <ul className="mt-4 space-y-2">
               {g.items.map((s) => (
-                <li key={s} className="flex gap-3 text-sm text-slate-500 dark:text-slate-600 dark:text-slate-300">
+                <li key={s} className="flex gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <span className="text-emerald-600 dark:text-emerald-400">▸</span>
                   {s}
                 </li>

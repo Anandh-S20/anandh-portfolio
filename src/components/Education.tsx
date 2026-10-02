@@ -26,7 +26,7 @@ export default function Education() {
           </h3>
           <ul className="mt-4 space-y-2">
             {portfolio.certifications.map((c) => (
-              <li key={c} className="flex gap-3 text-sm text-slate-500 dark:text-slate-600 dark:text-slate-300">
+              <li key={c} className="flex gap-3 text-sm text-slate-600 dark:text-slate-300">
                 <span className="text-emerald-600 dark:text-emerald-400">✓</span>
                 {c}
               </li>
