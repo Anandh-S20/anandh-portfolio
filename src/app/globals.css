@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -15,6 +17,12 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+/* Light theme overrides */
+html:not(.dark) body {
+  background: #f8fafc;
+  color: #334155;
+}
+
 ::selection {
   background: rgba(16, 185, 129, 0.3);
   color: #ffffff;
@@ -27,9 +35,15 @@ body {
 ::-webkit-scrollbar-track {
   background: #0b0f14;
 }
+html:not(.dark) ::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
 ::-webkit-scrollbar-thumb {
   background: #1e293b;
   border-radius: 8px;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #10b981;
