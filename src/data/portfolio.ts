@@ -39,7 +39,7 @@ export const portfolio = {
     {
       company: "Freelance",
       role: "IT Support & System Administrator",
-      period: "Ongoing",
+      period: "Until Feb 2026",
       location: "Remote / On-site",
       points: [
         "Troubleshot hardware and software issues remotely and on-site for small businesses and individuals",
