@@ -66,7 +66,6 @@ export async function sendReplyEmail(
     .replace(/\n/g, "<br>");
   const html = `<!DOCTYPE html>
 <html><body style="margin:0;padding:0;background-color:#f4f6f8;font-family:Arial,Helvetica,sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Anandh S has sent you a new message. Open the chat to reply.</div>
 <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f8;padding:32px 12px;">
 <tr><td align="center">
 <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e6e8eb;">
@@ -102,6 +101,9 @@ export async function sendReplyEmail(
       from: `"Anandh S" <${GMAIL_USER}>`,
       to,
       subject: "You have a new message from Anandh",
+      headers: {
+        "List-Unsubscribe": `<mailto:${GMAIL_USER}?subject=unsubscribe>`,
+      },
       text:
         `Hi ${visitorName},\n\n` +
         `You have a new message from Anandh:\n\n` +
