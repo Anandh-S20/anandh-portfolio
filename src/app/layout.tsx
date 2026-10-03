@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ChatWidget from "@/components/ChatWidget";
@@ -12,6 +12,14 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Make the mobile keyboard resize the page (not just cover it) so the
+  // chat panel shrinks and stays right above the keyboard.
+  interactiveWidget: "resizes-content",
+};
 
 export const metadata: Metadata = {
   title: "Anandh S — IT Administrator",
