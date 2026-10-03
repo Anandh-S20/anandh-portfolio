@@ -171,6 +171,7 @@ export default function ChatWidget() {
 
   // Play a sound when Anandh replies while the chat is open
   useEffect(() => {
+    if (!soundInit.current && messages.length === 0) return; // not loaded yet
     let newest = 0;
     for (const m of messages) {
       if (!m.fromVisitor) newest = Math.max(newest, m.createdAt?.toMillis() ?? 0);
@@ -278,7 +279,6 @@ export default function ChatWidget() {
     const msg = text.trim();
     if (!msg || sending || !isFirebaseConfigured || !db || !user) return;
     setSending(true);
-    setText("");
     const name = user.displayName || user.email || "Visitor";
     try {
       const docRef = await addDoc(collection(db, "portfolio_chats"), {
@@ -289,6 +289,7 @@ export default function ChatWidget() {
         fromVisitor: true,
         createdAt: serverTimestamp(),
       });
+      setText("");
       // Forward to Telegram (fire-and-forget)
       fetch("/api/chat/notify", {
         method: "POST",
@@ -296,7 +297,7 @@ export default function ChatWidget() {
         body: JSON.stringify({ threadId: user.uid, name, text: msg, docId: docRef.id }),
       }).catch(() => {});
     } catch {
-      /* message stays unsent; user can retry */
+      alert("Couldn't send that message — check your connection and try again.");
     } finally {
       setSending(false);
     }
