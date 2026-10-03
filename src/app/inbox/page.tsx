@@ -10,6 +10,7 @@ import {
   onSnapshot,
   serverTimestamp,
   doc,
+  deleteDoc,
   type Timestamp,
 } from "firebase/firestore";
 import {
@@ -178,6 +179,16 @@ export default function InboxPage() {
     }
   };
 
+  const deleteMessage = async (id: string) => {
+    if (!isFirebaseConfigured || !db) return;
+    if (!window.confirm("Delete this message for everyone?")) return;
+    try {
+      await deleteDoc(doc(db, "portfolio_chats", id));
+    } catch {
+      /* ignore */
+    }
+  };
+
   if (!authReady) {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#0b141a" }}>
@@ -316,6 +327,18 @@ export default function InboxPage() {
                       className="mt-1 flex items-center justify-end text-[10px]"
                       style={{ color: "#8696a0" }}
                     >
+                      {!m.fromVisitor && (
+                        <button
+                          onClick={() => deleteMessage(m.id)}
+                          className="mr-1 rounded p-0.5 text-white/30 hover:bg-white/10 hover:text-white"
+                          aria-label="Delete message"
+                          title="Delete message"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                            <path d="M6 7h12l-1 14H7L6 7Zm3-5h6l1 2h5v2H3V4h5l1-2Z" />
+                          </svg>
+                        </button>
+                      )}
                       {formatTime(m.createdAt)}
                       {!m.fromVisitor && <Ticks read={seen} />}
                     </p>
