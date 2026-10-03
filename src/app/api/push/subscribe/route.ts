@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
 import { adminDb, adminServerTimestamp } from "@/lib/firebaseAdmin";
 
 const OWNER_EMAIL = "anandhsaji287@gmail.com";
@@ -16,7 +15,9 @@ export async function POST(req: Request) {
     if (!subscription?.endpoint || !subscription?.keys || typeof kind !== "string" || !idToken) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
-    const decoded = await getAuth().verifyIdToken(idToken).catch(() => null);
+    const decoded = await import("firebase-admin/auth")
+      .then((m) => m.getAuth().verifyIdToken(idToken))
+      .catch(() => null);
     if (!decoded) return NextResponse.json({ ok: false }, { status: 401 });
     if (kind === "owner") {
       if (decoded.email !== OWNER_EMAIL) return NextResponse.json({ ok: false }, { status: 403 });
