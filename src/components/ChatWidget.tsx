@@ -6,7 +6,6 @@ import {
   addDoc,
   query,
   where,
-  orderBy,
   limit,
   onSnapshot,
   serverTimestamp,
@@ -105,17 +104,27 @@ export default function ChatWidget() {
 
   useEffect(() => {
     if (!open || !user || !isFirebaseConfigured || !db) return;
+    // NOTE: no orderBy here — a where()+orderBy() combo needs a composite
+    // Firestore index; we sort client-side instead so it just works.
     const q = query(
       collection(db, "portfolio_chats"),
       where("threadId", "==", user.uid),
-      orderBy("createdAt", "asc"),
       limit(100)
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(
-        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ChatMessage, "id">) }))
-      );
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const msgs = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<ChatMessage, "id">),
+        }));
+        msgs.sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
+        setMessages(msgs);
+      },
+      () => {
+        /* query failed; messages stay empty rather than crashing */
+      }
+    );
     return unsub;
   }, [open, user]);
 
