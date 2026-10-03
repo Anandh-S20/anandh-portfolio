@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { enablePush, disablePush, getPushState, pushSupported, playPop } from "@/lib/pushClient";
 import {
   collection,
   addDoc,
@@ -91,8 +92,11 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [pushState, setPushState] = useState<"on" | "off" | "unsupported">("unsupported");
   const bottomRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const latestOwnerAt = useRef<number>(0);
+  const soundInit = useRef(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -157,6 +161,53 @@ export default function ChatWidget() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
+
+  // Push notification state for the visitor (notify about Anandh's replies)
+  useEffect(() => {
+    if (!user || !pushSupported()) return;
+    getPushState().then(setPushState);
+  }, [user]);
+
+  // Play a sound when Anandh replies while the chat is open
+  useEffect(() => {
+    let newest = 0;
+    for (const m of messages) {
+      if (!m.fromVisitor) newest = Math.max(newest, m.createdAt?.toMillis() ?? 0);
+    }
+    if (!soundInit.current) {
+      latestOwnerAt.current = newest;
+      soundInit.current = true;
+      return;
+    }
+    if (newest > latestOwnerAt.current) {
+      latestOwnerAt.current = newest;
+      if (document.visibilityState === "visible") playPop();
+    }
+  }, [messages]);
+
+  const togglePush = async () => {
+    if (!user) return;
+    const kind = user.uid;
+    if (pushState === "on") {
+      await disablePush(kind);
+      setPushState("off");
+    } else {
+      const ok = await enablePush(kind, () => user.getIdToken());
+      setPushState(ok ? "on" : "off");
+      if (!ok) alert("Couldn't enable notifications — check the browser permission and try again.");
+    }
+  };
+
+  // Presence heartbeat so the inbox can show online / last-seen
+  useEffect(() => {
+    if (!open || !user || !isFirebaseConfigured || !db) return;
+    const ref = doc(db, "thread_seen", user.uid);
+    const beat = () =>
+      setDoc(ref, { lastActiveAt: serverTimestamp() }, { merge: true }).catch(() => {});
+    beat();
+    const iv = setInterval(beat, 60000);
+    return () => clearInterval(iv);
+  }, [open, user]);
 
   // Tell Anandh's inbox when the visitor has seen his replies: whenever the
   // chat is open, record the newest owner message timestamp in thread_seen.
@@ -289,6 +340,22 @@ export default function ChatWidget() {
                 {!isFirebaseConfigured ? "setting up…" : user ? "online" : "sign in to chat"}
               </p>
             </div>
+            {user && pushState !== "unsupported" && (
+              <button
+                onClick={togglePush}
+                className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+                aria-label={pushState === "on" ? "Turn off reply notifications" : "Notify me of replies"}
+                title={pushState === "on" ? "Reply notifications on" : "Notify me of replies"}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-5 w-5 fill-current"
+                  style={pushState === "on" ? { color: "#00a884" } : undefined}
+                >
+                  <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2Zm6-6v-5a6 6 0 0 0-4.5-5.8V4.5a1.5 1.5 0 0 0-3 0v.7A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2Z" />
+                </svg>
+              </button>
+            )}
             {user && (
               <button
                 onClick={signOutChat}
