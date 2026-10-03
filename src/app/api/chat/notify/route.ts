@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     }
     const message =
       `New portfolio chat message\n\nFrom: ${name}\n${text}\n\n` +
-      `[thread:${threadId}] — reply to this message to respond`;
+      `[thread:${threadId}] — reply to respond · reply /seen to check if read · reply /unsend to delete a message`;
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
