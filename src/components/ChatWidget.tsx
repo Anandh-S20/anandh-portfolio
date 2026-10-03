@@ -89,6 +89,7 @@ export default function ChatWidget() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -140,6 +141,23 @@ export default function ChatWidget() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
+
+  // Keep the panel fitted to the visible area on mobile: when the keyboard
+  // opens, the visual viewport shrinks — resize the panel so it sits right
+  // above the keyboard on every screen size / aspect ratio.
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    const panel = panelRef.current;
+    if (!vv || !panel) return;
+    const fit = () => {
+      const h = Math.min(600, Math.round(vv.height * 0.75));
+      panel.style.height = `${h}px`;
+    };
+    fit();
+    vv.addEventListener("resize", fit);
+    return () => vv.removeEventListener("resize", fit);
+  }, [open ]);
 
   const signIn = async () => {
     if (!auth || signingIn) return;
@@ -194,10 +212,11 @@ export default function ChatWidget() {
   const displayName = user?.displayName || user?.email || "you";
 
   return (
-    <div className="fixed bottom-5 right-5 z-[100] flex flex-col items-end">
+    <div className="fixed bottom-5 right-5 z-[100] flex flex-col items-end max-sm:bottom-3 max-sm:left-3 max-sm:right-3">
       {open && (
         <div
-          className="mb-3 flex h-[min(600px,70vh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl shadow-2xl"
+          ref={panelRef}
+          className="mb-3 flex h-[min(600px,72dvh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl shadow-2xl max-sm:mb-2 max-sm:w-full"
           style={{ backgroundColor: "#0b141a" }}
           role="dialog"
           aria-label="Chat with Anandh"
