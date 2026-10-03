@@ -193,7 +193,7 @@ export default function ChatWidget() {
     setText("");
     const name = user.displayName || user.email || "Visitor";
     try {
-      await addDoc(collection(db, "portfolio_chats"), {
+      const docRef = await addDoc(collection(db, "portfolio_chats"), {
         threadId: user.uid,
         name,
         email: user.email || "",
@@ -205,7 +205,7 @@ export default function ChatWidget() {
       fetch("/api/chat/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId: user.uid, name, text: msg }),
+        body: JSON.stringify({ threadId: user.uid, name, text: msg, docId: docRef.id }),
       }).catch(() => {});
     } catch {
       /* message stays unsent; user can retry */
