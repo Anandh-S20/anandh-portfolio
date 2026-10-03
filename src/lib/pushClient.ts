@@ -56,8 +56,9 @@ export async function enablePush(
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(pubKey) as BufferSource,
       });
-    } catch {
-      return { ok: false, reason: "push-subscribe-failed" };
+    } catch (e: any) {
+      const detail = String(e?.name ? e.name + ": " : "") + String(e?.message || "unknown");
+      return { ok: false, reason: "push-subscribe-failed:" + detail.slice(0, 80) };
     }
     let idToken: string;
     try {
