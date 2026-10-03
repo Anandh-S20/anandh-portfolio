@@ -79,7 +79,14 @@ export async function enablePush(
     }
     if (!res.ok) {
       await sub.unsubscribe().catch(() => {});
-      return { ok: false, reason: "server-" + res.status };
+      let code = "";
+      try {
+        const data = await res.json();
+        if (data && typeof data.code === "string" && data.code) code = ":" + data.code.slice(0, 60);
+      } catch {
+        /* ignore */
+      }
+      return { ok: false, reason: "server-" + res.status + code };
     }
     return { ok: true };
   } catch {
