@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
   addDoc,
+  setDoc,
   query,
   where,
   getDocs,
@@ -134,6 +135,25 @@ export default function InboxPage() {
     });
     return unsub;
   }, []);
+
+  // Owner presence heartbeat: while Anandh has the inbox open, visitors see
+  // a real "online" status; otherwise they see "last seen …".
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !user?.email || !OWNER_EMAILS.includes(user.email)) return;
+    const ref = doc(db, "presence", "owner");
+    const beat = () =>
+      setDoc(ref, { lastSeen: serverTimestamp() }, { merge: true }).catch(() => {});
+    beat();
+    const iv = setInterval(beat, 60000);
+    const onVis = () => {
+      if (!document.hidden) beat();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [user]);
 
   useEffect(() => {
     setReadMap(getReadMap());
