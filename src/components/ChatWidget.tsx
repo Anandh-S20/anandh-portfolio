@@ -151,7 +151,12 @@ export default function ChatWidget() {
     const panel = panelRef.current;
     if (!vv || !panel) return;
     const fit = () => {
-      const h = Math.min(600, Math.round(vv.height * 0.75));
+      // Mobile: full-screen panel sized to the visible area (above keyboard).
+      // Desktop: floating card.
+      const h =
+        window.innerWidth < 640
+          ? Math.round(vv.height)
+          : Math.min(600, Math.round(vv.height * 0.75));
       panel.style.height = `${h}px`;
     };
     fit();
@@ -216,7 +221,7 @@ export default function ChatWidget() {
       {open && (
         <div
           ref={panelRef}
-          className="mb-3 flex h-[min(600px,72dvh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl shadow-2xl max-sm:mb-2 max-sm:w-full"
+          className="mb-3 flex h-[min(600px,72dvh)] w-[min(380px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl shadow-2xl max-sm:fixed max-sm:inset-0 max-sm:mb-0 max-sm:h-full max-sm:w-full max-sm:rounded-none"
           style={{ backgroundColor: "#0b141a" }}
           role="dialog"
           aria-label="Chat with Anandh"
@@ -391,21 +396,17 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {/* Floating button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105"
-        style={{ backgroundColor: "#00a884" }}
-        aria-label={open ? "Close chat" : "Open chat"}
-      >
-        {open ? (
-          <svg viewBox="0 0 24 24" className="h-6 w-6 fill-white">
-            <path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4Z" />
-          </svg>
-        ) : (
+      {/* Floating button — hidden while the chat is open (the panel header has its own close button) */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105"
+          style={{ backgroundColor: "#00a884" }}
+          aria-label="Open chat"
+        >
           <ChatIcon />
-        )}
-      </button>
+        </button>
+      )}
     </div>
   );
 }
