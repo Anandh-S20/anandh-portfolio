@@ -9,6 +9,7 @@ import {
   limit,
   onSnapshot,
   serverTimestamp,
+  doc,
   type Timestamp,
 } from "firebase/firestore";
 import {
@@ -48,6 +49,17 @@ function formatTime(ts: Timestamp | null): string {
   return `${h}:${m} ${ampm}`;
 }
 
+function Ticks({ read }: { read: boolean }) {
+  return (
+    <svg viewBox="0 0 16 11" className="ml-1 inline h-3.5 w-4 shrink-0" aria-hidden>
+      <path
+        fill={read ? "#53bdeb" : "#8696a0"}
+        d="M11.1 0 6.6 7.9 4.5 5.7 3.4 6.8l3.2 3.2L12.3 1 11.1 0ZM15.5 0l-4.5 7.9-1-1.1-1.1 1.1 2.1 2.1L16.7 1l-1.2-1Z"
+      />
+    </svg>
+  );
+}
+
 export default function InboxPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -55,6 +67,7 @@ export default function InboxPage() {
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [seenAt, setSeenAt] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,6 +102,22 @@ export default function InboxPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activeThread]);
+
+  // Watch the visitor's seen-marker for the active thread
+  useEffect(() => {
+    if (!activeThread || !isFirebaseConfigured || !db) {
+      setSeenAt(0);
+      return;
+    }
+    const unsub = onSnapshot(
+      doc(db, "thread_seen", activeThread),
+      (snap) => {
+        setSeenAt(snap.exists() ? (snap.data().ownerLastSeenAt?.toMillis() ?? 0) : 0);
+      },
+      () => {}
+    );
+    return unsub;
+  }, [activeThread]);
 
   const threads: Thread[] = useMemo(() => {
     const map = new Map<string, Thread>();
@@ -264,7 +293,10 @@ export default function InboxPage() {
                 backgroundSize: "18px 18px",
               }}
             >
-              {activeMessages.map((m) => (
+              {activeMessages.map((m) => {
+                // Seen = the visitor opened the chat after this reply was sent
+                const seen = !m.fromVisitor && !!m.createdAt && seenAt > 0 && m.createdAt.toMillis() <= seenAt;
+                return (
                 <div key={m.id} className={`flex ${m.fromVisitor ? "justify-start" : "justify-end"}`}>
                   <div
                     className="max-w-[80%] rounded-lg px-3 py-2 text-sm text-white shadow"
@@ -280,12 +312,17 @@ export default function InboxPage() {
                       </p>
                     )}
                     <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                    <p className="mt-1 text-right text-[10px]" style={{ color: "#8696a0" }}>
+                    <p
+                      className="mt-1 flex items-center justify-end text-[10px]"
+                      style={{ color: "#8696a0" }}
+                    >
                       {formatTime(m.createdAt)}
+                      {!m.fromVisitor && <Ticks read={seen} />}
                     </p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
               <div ref={bottomRef} />
             </div>
             <div className="flex items-center gap-2 px-3 py-2.5" style={{ backgroundColor: "#1f2c34" }}>
