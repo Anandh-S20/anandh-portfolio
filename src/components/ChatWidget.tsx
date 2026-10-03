@@ -46,11 +46,11 @@ function ChatIcon() {
   );
 }
 
-function Ticks() {
+function Ticks({ read }: { read: boolean }) {
   return (
     <svg viewBox="0 0 16 11" className="ml-1 inline h-3.5 w-4 shrink-0" aria-hidden>
       <path
-        fill="#53bdeb"
+        fill={read ? "#53bdeb" : "#8696a0"}
         d="M11.1 0 6.6 7.9 4.5 5.7 3.4 6.8l3.2 3.2L12.3 1 11.1 0ZM15.5 0l-4.5 7.9-1-1.1-1.1 1.1 2.1 2.1L16.7 1l-1.2-1Z"
       />
     </svg>
@@ -339,7 +339,18 @@ export default function ChatWidget() {
                   </div>
                 )}
 
-                {messages.map((m) => (
+                {messages.map((m) => {
+                  // Blue ticks only once Anandh has replied after this message —
+                  // i.e. an owner message exists with a later timestamp.
+                  const read =
+                    m.fromVisitor &&
+                    messages.some(
+                      (o) =>
+                        !o.fromVisitor &&
+                        (o.createdAt?.toMillis() ?? Date.now()) >
+                          (m.createdAt?.toMillis() ?? Date.now())
+                    );
+                  return (
                   <div key={m.id} className={`flex ${m.fromVisitor ? "justify-end" : "justify-start"}`}>
                     <div
                       className="max-w-[80%] rounded-lg px-3 py-2 text-sm text-white shadow"
@@ -360,11 +371,12 @@ export default function ChatWidget() {
                         style={{ color: m.fromVisitor ? "#ffffffb3" : "#8696a0" }}
                       >
                         {formatTime(m.createdAt)}
-                        {m.fromVisitor && <Ticks />}
+                        {m.fromVisitor && <Ticks read={read} />}
                       </p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <div ref={bottomRef} />
               </div>
 
