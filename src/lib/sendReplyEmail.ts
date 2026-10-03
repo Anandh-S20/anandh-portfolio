@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
-import { collection, query, where, limit, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { adminDb, adminServerTimestamp } from "@/lib/firebaseAdmin";
 
 const GMAIL_USER = process.env.GMAIL_USER || "botser287@gmail.com";
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
@@ -9,10 +8,10 @@ const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 const COOLDOWN_MS = 30 * 60 * 1000;
 
 async function cooldownActive(threadId: string): Promise<boolean> {
-  if (!isFirebaseConfigured || !db || !threadId) return false;
+  if (!adminDb || !threadId) return false;
   try {
-    const snap = await getDoc(doc(db, "email_cooldowns", threadId));
-    const last = snap.exists() ? (snap.data().lastSentAt?.toMillis() ?? 0) : 0;
+    const snap = await adminDb.doc(`email_cooldowns/${threadId}`).get();
+    const last = snap.exists ? ((snap.data()?.lastSentAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0) : 0;
     return Date.now() - last < COOLDOWN_MS;
   } catch {
     return false; // fail open — better to send than to silently drop
@@ -20,13 +19,11 @@ async function cooldownActive(threadId: string): Promise<boolean> {
 }
 
 async function recordSent(threadId: string): Promise<void> {
-  if (!isFirebaseConfigured || !db || !threadId) return;
+  if (!adminDb || !threadId) return;
   try {
-    await setDoc(
-      doc(db, "email_cooldowns", threadId),
-      { lastSentAt: serverTimestamp() },
-      { merge: true }
-    );
+    await adminDb
+      .doc(`email_cooldowns/${threadId}`)
+      .set({ lastSentAt: adminServerTimestamp() }, { merge: true });
   } catch {
     /* ignore */
   }
@@ -35,10 +32,12 @@ async function recordSent(threadId: string): Promise<void> {
 export async function findVisitorEmail(
   threadId: string
 ): Promise<{ email: string; name: string } | null> {
-  if (!isFirebaseConfigured || !db) return null;
-  const snap = await getDocs(
-    query(collection(db, "portfolio_chats"), where("threadId", "==", threadId), limit(100))
-  );
+  if (!adminDb) return null;
+  const snap = await adminDb
+    .collection("portfolio_chats")
+    .where("threadId", "==", threadId)
+    .limit(100)
+    .get();
   for (const d of snap.docs) {
     const data = d.data() as { email?: string; name?: string };
     if (data.email) return { email: data.email, name: data.name || "there" };
