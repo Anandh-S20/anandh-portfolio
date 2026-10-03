@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { findVisitorEmail, sendReplyEmail } from "@/lib/sendReplyEmail";
 
 /**
  * Telegram webhook: when Anandh swipes-replies to a chat notification
@@ -26,6 +27,10 @@ export async function POST(req: Request) {
       fromVisitor: false,
       createdAt: serverTimestamp(),
     });
+    // Email the visitor about the reply (fire-and-forget)
+    findVisitorEmail(match[1]).then((visitor) => {
+      if (visitor) sendReplyEmail(visitor.email, visitor.name, text).catch(() => {});
+    }).catch(() => {});
     return NextResponse.json({ ok: true });
   } catch {
     // Always 200 so Telegram doesn't retry endlessly
