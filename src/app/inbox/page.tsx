@@ -20,7 +20,7 @@ import {
 } from "firebase/auth";
 import { db, auth, isFirebaseConfigured } from "@/lib/firebase";
 
-const OWNER_EMAIL = "anandhsaji287@gmail.com";
+const OWNER_EMAILS = ["anandhsaji287@gmail.com", "puthiya.ac287@gmail.com"];
 
 type ChatMessage = {
   id: string;
@@ -69,7 +69,7 @@ export default function InboxPage() {
     return unsub;
   }, []);
 
-  const isOwner = user?.email === OWNER_EMAIL;
+  const isOwner = !!user?.email && OWNER_EMAILS.includes(user.email);
 
   useEffect(() => {
     if (!isOwner || !isFirebaseConfigured || !db) return;
