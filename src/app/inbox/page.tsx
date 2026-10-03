@@ -159,6 +159,7 @@ export default function InboxPage() {
 
   // Play a sound when a new visitor message arrives while the inbox is open
   useEffect(() => {
+    if (!pushInit.current && messages.length === 0) return; // not loaded yet
     let newest = 0;
     for (const m of messages) {
       if (m.fromVisitor) newest = Math.max(newest, m.createdAt?.toMillis() ?? 0);
