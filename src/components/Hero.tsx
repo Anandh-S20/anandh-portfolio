@@ -28,6 +28,16 @@ export default function Hero() {
             Get in Touch
           </a>
           <a
+            href="/Anandh_S_Resume.docx"
+            download="Anandh_S_Resume.docx"
+            className="inline-flex items-center gap-2 rounded-md bg-emerald-500/15 px-6 py-3 font-semibold text-emerald-600 dark:text-emerald-400 transition hover:bg-emerald-500/25"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
+              <path d="M12 3v12.2l4.2-4.2 1.4 1.4L12 18l-5.6-5.6 1.4-1.4L12 15.2V3h0ZM5 20h14v2H5v-2Z" />
+            </svg>
+            Resume
+          </a>
+          <a
             href="#experience"
             className="rounded-md border border-slate-300 dark:border-white/15 px-6 py-3 font-semibold text-slate-700 dark:text-slate-200 transition hover:border-emerald-400/60 hover:text-emerald-600 dark:hover:text-emerald-400"
           >
