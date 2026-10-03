@@ -46,6 +46,7 @@ type ChatMessage = {
   id: string;
   threadId: string;
   name: string;
+  photoURL?: string;
   text: string;
   fromVisitor: boolean;
   createdAt: Timestamp | null;
@@ -54,6 +55,7 @@ type ChatMessage = {
 type Thread = {
   threadId: string;
   name: string;
+  photoURL?: string;
   lastText: string;
   lastAt: number;
   lastFromVisitor: boolean;
@@ -248,10 +250,15 @@ export default function InboxPage() {
         map.set(m.threadId, {
           threadId: m.threadId,
           name: m.name || "Visitor",
+          photoURL: m.fromVisitor ? m.photoURL || "" : "",
           lastText: m.text,
           lastAt: m.createdAt?.toMillis() ?? 0,
           lastFromVisitor: m.fromVisitor,
         });
+      } else if (m.fromVisitor && m.photoURL) {
+        // Prefer the visitor's Google profile photo (newest one wins)
+        const t = map.get(m.threadId)!;
+        if (!t.photoURL) t.photoURL = m.photoURL;
       }
     }
     return [...map.values()].sort((a, b) => b.lastAt - a.lastAt);
@@ -522,12 +529,21 @@ export default function InboxPage() {
                 style={t.threadId === activeThread ? { backgroundColor: "#1f2c34" } : undefined}
               >
                 <div className="relative shrink-0">
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold text-white"
-                    style={{ backgroundColor: avatarColor(t.name) }}
-                  >
-                    {t.name.charAt(0).toUpperCase()}
-                  </div>
+                  {t.photoURL ? (
+                    <img
+                      src={t.photoURL}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold text-white"
+                      style={{ backgroundColor: avatarColor(t.name) }}
+                    >
+                      {t.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   {online && (
                     <span
                       className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2"
@@ -596,11 +612,22 @@ export default function InboxPage() {
                   <path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2Z" />
                 </svg>
               </button>
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white"
-                style={{ backgroundColor: avatarColor(activeThreadInfo?.name ?? "?") }}
-              >
-                {(activeThreadInfo?.name ?? "?").charAt(0).toUpperCase()}
+              <div className="shrink-0">
+                {activeThreadInfo?.photoURL ? (
+                  <img
+                    src={activeThreadInfo.photoURL}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-base font-semibold text-white"
+                    style={{ backgroundColor: avatarColor(activeThreadInfo?.name ?? "?") }}
+                  >
+                    {(activeThreadInfo?.name ?? "?").charAt(0).toUpperCase()}
+                  </div>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-medium text-white">
