@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner() {
+      return request.auth != null
+        && request.auth.token.email in [
+          "anandhsaji287@gmail.com",
+          "puthiya.ac287@gmail.com"
+        ];
+    }
+
+    // Chat messages: the owner sees everything; a signed-in visitor can
+    // only read/create messages in their own thread (threadId == their UID).
+    // Updates/deletes are owner-only (server routes use the Admin SDK).
+    match /portfolio_chats/{docId} {
+      allow read: if isOwner()
+        || (request.auth != null && resource.data.threadId == request.auth.uid);
+      allow create: if request.auth != null
+        && request.resource.data.threadId == request.auth.uid;
+      allow update, delete: if isOwner();
+    }
+
+    // Seen/presence markers: owner sees all; visitor manages their own doc.
+    match /thread_seen/{threadId} {
+      allow read: if isOwner()
+        || (request.auth != null && request.auth.uid == threadId);
+      allow write: if isOwner()
+        || (request.auth != null && request.auth.uid == threadId);
+    }
+
+    // Server-only collections (Admin SDK bypasses rules).
+    match /site_visits/{docId} {
+      allow read, write: if false;
+    }
+    match /email_cooldowns/{docId} {
+      allow read, write: if false;
+    }
+  }
+}
