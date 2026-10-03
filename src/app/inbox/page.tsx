@@ -5,6 +5,9 @@ import {
   collection,
   addDoc,
   query,
+  where,
+  getDocs,
+  writeBatch,
   orderBy,
   limit,
   onSnapshot,
@@ -350,6 +353,36 @@ export default function InboxPage() {
     }
   };
 
+  const deleteChat = async () => {
+    if (!isFirebaseConfigured || !db || !activeThread) return;
+    const name = activeThreadInfo?.name ?? "this chat";
+    if (!window.confirm(`Delete the entire conversation with ${name}? All messages will be cleared for everyone.`)) return;
+    try {
+      const snap = await getDocs(
+        query(collection(db, "portfolio_chats"), where("threadId", "==", activeThread))
+      );
+      // Delete in batches (Firestore caps at 500 ops per batch)
+      let batch = writeBatch(db);
+      let count = 0;
+      const commits: Promise<void>[] = [];
+      for (const d of snap.docs) {
+        batch.delete(d.ref);
+        count++;
+        if (count >= 400) {
+          commits.push(batch.commit());
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) commits.push(batch.commit());
+      await Promise.all(commits);
+      await deleteDoc(doc(db, "thread_seen", activeThread)).catch(() => {});
+      setActiveThread(null);
+    } catch {
+      alert("Couldn't delete the chat — try again.");
+    }
+  };
+
   if (!authReady) {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#0b141a" }}>
@@ -557,6 +590,16 @@ export default function InboxPage() {
                   </p>
                 )}
               </div>
+              <button
+                onClick={deleteChat}
+                className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+                aria-label="Delete conversation"
+                title="Delete conversation"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                  <path d="M6 7h12l-1 14H7L6 7Zm3-5h6l1 2h5v2H3V4h5l1-2Z" />
+                </svg>
+              </button>
             </div>
             <div
               className="flex-1 space-y-2 overflow-y-auto px-4 py-4"
