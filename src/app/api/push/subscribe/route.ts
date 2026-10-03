@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getApps } from "firebase-admin/app";
 import { adminDb, adminServerTimestamp } from "@/lib/firebaseAdmin";
 
 const OWNER_EMAIL = "anandhsaji287@gmail.com";
@@ -19,7 +20,12 @@ export async function POST(req: Request) {
     let decoded: any = null;
     try {
       const m = await import("firebase-admin/auth");
-      decoded = await m.getAuth().verifyIdToken(idToken);
+      // Pass the initialized app explicitly: the dynamically-imported auth
+      // module may not share the default-app registry with the statically
+      // imported firebase-admin/app, so getAuth() without args can throw.
+      const app = getApps()[0];
+      if (!app) throw new Error("no-app-initialized");
+      decoded = await m.getAuth(app).verifyIdToken(idToken);
     } catch (e: any) {
       // Error code only (no secrets) — surfaced for diagnostics
       verifyError = String(e?.code || e?.message || "unknown").slice(0, 100);
