@@ -323,6 +323,7 @@ export default function ChatWidget() {
       const docRef = await addDoc(collection(db, "portfolio_chats"), {
         threadId: user.uid,
         name,
+        photoURL: user.photoURL || "",
         email: user.email || "",
         text: msg,
         fromVisitor: true,
