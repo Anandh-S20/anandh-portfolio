@@ -1,9 +1,36 @@
 import nodemailer from "nodemailer";
-import { collection, query, where, limit, getDocs } from "firebase/firestore";
+import { collection, query, where, limit, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 
 const GMAIL_USER = process.env.GMAIL_USER || "botser287@gmail.com";
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+
+// Anti-spam: at most one reply-email per visitor every 30 minutes.
+const COOLDOWN_MS = 30 * 60 * 1000;
+
+async function cooldownActive(threadId: string): Promise<boolean> {
+  if (!isFirebaseConfigured || !db || !threadId) return false;
+  try {
+    const snap = await getDoc(doc(db, "email_cooldowns", threadId));
+    const last = snap.exists() ? (snap.data().lastSentAt?.toMillis() ?? 0) : 0;
+    return Date.now() - last < COOLDOWN_MS;
+  } catch {
+    return false; // fail open — better to send than to silently drop
+  }
+}
+
+async function recordSent(threadId: string): Promise<void> {
+  if (!isFirebaseConfigured || !db || !threadId) return;
+  try {
+    await setDoc(
+      doc(db, "email_cooldowns", threadId),
+      { lastSentAt: serverTimestamp() },
+      { merge: true }
+    );
+  } catch {
+    /* ignore */
+  }
+}
 
 export async function findVisitorEmail(
   threadId: string
@@ -20,11 +47,13 @@ export async function findVisitorEmail(
 }
 
 export async function sendReplyEmail(
+  threadId: string,
   to: string,
   visitorName: string,
   replyText: string
 ): Promise<boolean> {
   if (!GMAIL_APP_PASSWORD || !to) return false;
+  if (await cooldownActive(threadId)) return false;
   const chatUrl = "https://anandhs-portfolio.vercel.app/#chat";
   const safeName = visitorName
     .replace(/&/g, "&amp;")
@@ -80,6 +109,7 @@ export async function sendReplyEmail(
         `Reply in the chat: ${chatUrl}`,
       html,
     });
+    await recordSent(threadId);
     return true;
   } catch {
     return false;
