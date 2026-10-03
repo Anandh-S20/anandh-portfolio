@@ -212,18 +212,24 @@ export default function ChatWidget() {
   }, [open, user]);
 
   // Anandh's real presence: the inbox heartbeats presence/owner while open.
-  // "online" only if the heartbeat is fresh, otherwise "last seen …".
-  const [ownerLastSeenMs, setOwnerLastSeenMs] = useState(0);
+  // "online" only if the heartbeat is fresh; otherwise "last seen …" shows
+  // when he last REPLIED (lastReplyAt), falling back to the heartbeat time.
+  const [ownerSeenMs, setOwnerSeenMs] = useState(0);
+  const [ownerReplyMs, setOwnerReplyMs] = useState(0);
   const [, setNowTick] = useState(0);
   useEffect(() => {
     if (!isFirebaseConfigured || !db) return;
     const unsub = onSnapshot(
       doc(db, "presence", "owner"),
       (snap) => {
-        const ts = snap.data()?.lastSeen as Timestamp | undefined;
-        setOwnerLastSeenMs(ts?.toMillis?.() ?? 0);
+        const data = snap.data() ?? {};
+        setOwnerSeenMs((data.lastSeen as Timestamp | undefined)?.toMillis?.() ?? 0);
+        setOwnerReplyMs((data.lastReplyAt as Timestamp | undefined)?.toMillis?.() ?? 0);
       },
-      () => setOwnerLastSeenMs(0)
+      () => {
+        setOwnerSeenMs(0);
+        setOwnerReplyMs(0);
+      }
     );
     return unsub;
   }, []);
@@ -232,16 +238,15 @@ export default function ChatWidget() {
     return () => clearInterval(iv);
   }, []);
   const ownerPresence = ((): { label: string; online: boolean } => {
-    if (!ownerLastSeenMs) return { label: "", online: false };
-    const age = Date.now() - ownerLastSeenMs;
-    if (age < 120000) return { label: "online", online: true };
-    const d = new Date(ownerLastSeenMs);
+    if (!ownerSeenMs && !ownerReplyMs) return { label: "", online: false };
+    if (ownerSeenMs && Date.now() - ownerSeenMs < 120000) return { label: "online", online: true };
+    const refMs = ownerReplyMs || ownerSeenMs;
+    const d = new Date(refMs);
     const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     const today = new Date();
-    const sameDay = d.toDateString() === today.toDateString();
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
-    const dayLabel = sameDay ? "today" : d.toDateString() === yesterday.toDateString() ? "yesterday" : d.toLocaleDateString();
+    const dayLabel = d.toDateString() === today.toDateString() ? "today" : d.toDateString() === yesterday.toDateString() ? "yesterday" : d.toLocaleDateString();
     return { label: `last seen ${dayLabel} at ${time}`, online: false };
   })();
 
