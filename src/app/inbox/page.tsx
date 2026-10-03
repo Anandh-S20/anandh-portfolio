@@ -21,8 +21,22 @@ import {
   type User,
 } from "firebase/auth";
 import { db, auth, isFirebaseConfigured } from "@/lib/firebase";
+import { enablePush, disablePush, getPushState, pushSupported, playPop } from "@/lib/pushClient";
 
-const OWNER_EMAILS = ["anandhsaji287@gmail.com", "puthiya.ac287@gmail.com"];
+const OWNER_EMAILS = ["anandhsaji287@gmail.com"];
+const READ_KEY = "inbox_read_v1";
+const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+
+const AVATAR_COLORS = [
+  "#00a884", "#7c5cff", "#e91e63", "#ff9800",
+  "#03a9f4", "#8bc34a", "#ff5722", "#9c27b0",
+];
+
+function avatarColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
 
 type ChatMessage = {
   id: string;
@@ -38,6 +52,7 @@ type Thread = {
   name: string;
   lastText: string;
   lastAt: number;
+  lastFromVisitor: boolean;
 };
 
 function formatTime(ts: Timestamp | null): string {
@@ -48,6 +63,26 @@ function formatTime(ts: Timestamp | null): string {
   const ampm = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   return `${h}:${m} ${ampm}`;
+}
+
+function relativeTime(millis: number): string {
+  if (!millis) return "";
+  const d = new Date(millis);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    let h = d.getHours();
+    const m = d.getMinutes().toString().padStart(2, "0");
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    return `${h}:${m} ${ampm}`;
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  if (now.getTime() - millis < 7 * 86400000) {
+    return d.toLocaleDateString("en-US", { weekday: "short" });
+  }
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 function Ticks({ read }: { read: boolean }) {
@@ -61,6 +96,14 @@ function Ticks({ read }: { read: boolean }) {
   );
 }
 
+function getReadMap(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(READ_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
 export default function InboxPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -68,8 +111,14 @@ export default function InboxPage() {
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [seenAt, setSeenAt] = useState(0);
+  const [search, setSearch] = useState("");
+  const [readMap, setReadMap] = useState<Record<string, number>>({});
+  const [seenInfo, setSeenInfo] = useState<Record<string, { seenAt: number; activeAt: number }>>({});
+  const [pushState, setPushState] = useState<"on" | "off" | "unsupported">("unsupported");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const latestVisitorAt = useRef<number>(0);
+  const pushInit = useRef(false);
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -83,7 +132,47 @@ export default function InboxPage() {
     return unsub;
   }, []);
 
+  useEffect(() => {
+    setReadMap(getReadMap());
+  }, []);
+
+  // Keep the inbox fitted above the mobile keyboard (visualViewport shrinks
+  // when the keyboard opens) so the reply box stays visible and usable.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const root = rootRef.current;
+    if (!vv || !root) return;
+    const fit = () => {
+      root.style.height = `${Math.round(vv.height)}px`;
+    };
+    fit();
+    vv.addEventListener("resize", fit);
+    return () => vv.removeEventListener("resize", fit);
+  }, [authReady, user]);
+
+  // Push notification state (owner)
   const isOwner = !!user?.email && OWNER_EMAILS.includes(user.email);
+  useEffect(() => {
+    if (!isOwner || !pushSupported()) return;
+    getPushState().then(setPushState);
+  }, [isOwner]);
+
+  // Play a sound when a new visitor message arrives while the inbox is open
+  useEffect(() => {
+    let newest = 0;
+    for (const m of messages) {
+      if (m.fromVisitor) newest = Math.max(newest, m.createdAt?.toMillis() ?? 0);
+    }
+    if (!pushInit.current) {
+      latestVisitorAt.current = newest;
+      pushInit.current = true;
+      return;
+    }
+    if (newest > latestVisitorAt.current) {
+      latestVisitorAt.current = newest;
+      if (document.visibilityState === "visible") playPop();
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (!isOwner || !isFirebaseConfigured || !db) return;
@@ -100,25 +189,32 @@ export default function InboxPage() {
     return unsub;
   }, [isOwner]);
 
+  // Visitor seen-markers + presence for all threads
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, activeThread]);
-
-  // Watch the visitor's seen-marker for the active thread
-  useEffect(() => {
-    if (!activeThread || !isFirebaseConfigured || !db) {
-      setSeenAt(0);
-      return;
-    }
+    if (!isOwner || !isFirebaseConfigured || !db) return;
     const unsub = onSnapshot(
-      doc(db, "thread_seen", activeThread),
+      collection(db, "thread_seen"),
       (snap) => {
-        setSeenAt(snap.exists() ? (snap.data().ownerLastSeenAt?.toMillis() ?? 0) : 0);
+        const map: Record<string, { seenAt: number; activeAt: number }> = {};
+        for (const d of snap.docs) {
+          const data = d.data() as { ownerLastSeenAt?: Timestamp; lastActiveAt?: Timestamp };
+          map[d.id] = {
+            seenAt: data.ownerLastSeenAt?.toMillis() ?? 0,
+            activeAt: data.lastActiveAt?.toMillis() ?? 0,
+          };
+        }
+        setSeenInfo(map);
       },
       () => {}
     );
     return unsub;
-  }, [activeThread]);
+  }, [isOwner]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, activeThread]);
+
+  const seenAt = activeThread ? (seenInfo[activeThread]?.seenAt ?? 0) : 0;
 
   const threads: Thread[] = useMemo(() => {
     const map = new Map<string, Thread>();
@@ -130,11 +226,39 @@ export default function InboxPage() {
           name: m.name || "Visitor",
           lastText: m.text,
           lastAt: m.createdAt?.toMillis() ?? 0,
+          lastFromVisitor: m.fromVisitor,
         });
       }
     }
     return [...map.values()].sort((a, b) => b.lastAt - a.lastAt);
   }, [messages]);
+
+  const unreadByThread = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const m of messages) {
+      if (m.fromVisitor && (m.createdAt?.toMillis() ?? 0) > (readMap[m.threadId] || 0)) {
+        counts[m.threadId] = (counts[m.threadId] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [messages, readMap]);
+
+  const totalUnread = useMemo(
+    () => Object.values(unreadByThread).reduce((a, b) => a + b, 0),
+    [unreadByThread]
+  );
+
+  const filteredThreads = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return threads;
+    const texts: Record<string, string> = {};
+    for (const m of messages) {
+      texts[m.threadId] = (texts[m.threadId] || "") + " " + m.text.toLowerCase();
+    }
+    return threads.filter(
+      (t) => t.name.toLowerCase().includes(q) || (texts[t.threadId] || "").includes(q)
+    );
+  }, [threads, messages, search]);
 
   const activeMessages = useMemo(
     () =>
@@ -144,12 +268,48 @@ export default function InboxPage() {
     [messages, activeThread]
   );
 
+  const isOnline = (threadId: string) =>
+    Date.now() - (seenInfo[threadId]?.activeAt ?? 0) < ONLINE_WINDOW_MS;
+
+  const activeStatus = useMemo(() => {
+    if (!activeThread) return "";
+    const at = seenInfo[activeThread]?.activeAt ?? 0;
+    if (Date.now() - at < ONLINE_WINDOW_MS) return "online";
+    if (at) return `last seen ${relativeTime(at).toLowerCase()}`;
+    return "";
+  }, [activeThread, seenInfo]);
+
+  const openThread = (t: Thread) => {
+    setActiveThread(t.threadId);
+    try {
+      const map = getReadMap();
+      map[t.threadId] = Date.now();
+      localStorage.setItem(READ_KEY, JSON.stringify(map));
+      setReadMap(map);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const signIn = async () => {
     if (!auth) return;
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
     } catch {
       /* user closed the popup */
+    }
+  };
+
+  const togglePush = async () => {
+    const cu = auth?.currentUser;
+    if (!cu) return;
+    if (pushState === "on") {
+      await disablePush("owner");
+      setPushState("off");
+    } else {
+      const ok = await enablePush("owner", () => cu.getIdToken());
+      setPushState(ok ? "on" : "off");
+      if (!ok) alert("Couldn't enable notifications — check the browser permission and try again.");
     }
   };
 
@@ -213,78 +373,164 @@ export default function InboxPage() {
   }
 
   if (!isOwner) {
+    // Signed in but not the owner — send them to their own chat instead
+    // of a dead-end wall.
+    if (typeof window !== "undefined") {
+      window.location.replace("/#chat");
+    }
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center" style={{ backgroundColor: "#0b141a" }}>
-        <p className="text-lg font-medium text-white">Private inbox</p>
-        <p className="text-sm" style={{ color: "#8696a0" }}>
-          Signed in as {user.email} — this inbox belongs to the site owner.
-        </p>
-        <button
-          onClick={() => signOut(auth!)}
-          className="rounded-full px-6 py-2.5 text-sm font-medium text-white"
-          style={{ backgroundColor: "#00a884" }}
-        >
-          Sign out
-        </button>
+      <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#0b141a" }}>
+        <p className="text-sm" style={{ color: "#8696a0" }}>Opening your chat…</p>
       </div>
     );
   }
 
-  const activeName = threads.find((t) => t.threadId === activeThread)?.name ?? "Chat";
+  const activeThreadInfo = threads.find((t) => t.threadId === activeThread);
 
   return (
-    <div className="flex h-screen" style={{ backgroundColor: "#0b141a" }}>
-      {/* Thread list */}
+    <div ref={rootRef} className="flex h-dvh" style={{ backgroundColor: "#0b141a" }}>
+      {/* Chat list */}
       <div
-        className={`${activeThread ? "hidden md:flex" : "flex"} w-full flex-col md:w-[340px] md:shrink-0`}
+        className={`${activeThread ? "hidden md:flex" : "flex"} w-full flex-col md:w-[360px] md:shrink-0`}
         style={{ backgroundColor: "#111b21", borderRight: "1px solid #222d34" }}
       >
-        <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: "#1f2c34" }}>
-          <p className="text-[15px] font-medium text-white">Inbox</p>
-          <button
-            onClick={() => signOut(auth!)}
-            className="text-xs text-white/70 hover:text-white"
+        <div className="px-4 pb-3 pt-4" style={{ backgroundColor: "#1f2c34" }}>
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-2 text-lg font-semibold text-white">
+              Chats
+              {totalUnread > 0 && (
+                <span
+                  className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white"
+                  style={{ backgroundColor: "#00a884" }}
+                >
+                  {totalUnread}
+                </span>
+              )}
+            </p>
+            <div className="flex items-center gap-2">
+              {pushState !== "unsupported" && (
+                <button
+                  onClick={togglePush}
+                  className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+                  aria-label={pushState === "on" ? "Turn off notifications" : "Turn on notifications"}
+                  title={pushState === "on" ? "Notifications on" : "Notifications off"}
+                >
+                  {pushState === "on" ? (
+                    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" style={{ color: "#00a884" }}>
+                      <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2Zm6-6v-5a6 6 0 0 0-4.5-5.8V4.5a1.5 1.5 0 0 0-3 0v.7A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2Z" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
+                      <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2Zm6-6v-5a6 6 0 0 0-4.5-5.8V4.5a1.5 1.5 0 0 0-3 0v.7A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2Z" />
+                    </svg>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => signOut(auth!)}
+                className="text-xs text-white/70 hover:text-white"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+          <div
+            className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2"
+            style={{ backgroundColor: "#0b141a" }}
           >
-            Sign out
-          </button>
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-white/40">
+              <path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5-5-5Zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search"
+              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+            />
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          {threads.length === 0 && (
+        <div className="flex-1 overflow-y-auto py-1">
+          {filteredThreads.length === 0 && (
             <p className="p-6 text-center text-sm" style={{ color: "#8696a0" }}>
-              No messages yet.
+              {search ? "No chats match your search." : "No messages yet."}
             </p>
           )}
-          {threads.map((t) => (
-            <button
-              key={t.threadId}
-              onClick={() => setActiveThread(t.threadId)}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/5"
-              style={t.threadId === activeThread ? { backgroundColor: "#1f2c34" } : undefined}
-            >
-              <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white"
-                style={{ backgroundColor: "#00a884" }}
+          {filteredThreads.map((t) => {
+            const unread = unreadByThread[t.threadId] || 0;
+            const online = isOnline(t.threadId);
+            return (
+              <button
+                key={t.threadId}
+                onClick={() => openThread(t)}
+                className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-white/5"
+                style={t.threadId === activeThread ? { backgroundColor: "#1f2c34" } : undefined}
               >
-                {t.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] font-medium text-white">{t.name}</p>
-                <p className="truncate text-[13px]" style={{ color: "#8696a0" }}>{t.lastText}</p>
-              </div>
-            </button>
-          ))}
+                <div className="relative shrink-0">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold text-white"
+                    style={{ backgroundColor: avatarColor(t.name) }}
+                  >
+                    {t.name.charAt(0).toUpperCase()}
+                  </div>
+                  {online && (
+                    <span
+                      className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2"
+                      style={{ backgroundColor: "#00a884", borderColor: "#111b21" }}
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 border-b pb-2" style={{ borderColor: "#222d34" }}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="truncate text-[15px] font-medium text-white">{t.name}</p>
+                    <span
+                      className="shrink-0 text-xs"
+                      style={{ color: unread > 0 ? "#00a884" : "#8696a0" }}
+                    >
+                      {relativeTime(t.lastAt)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between gap-2">
+                    <p className="truncate text-[13px]" style={{ color: "#8696a0" }}>
+                      {!t.lastFromVisitor && (
+                        <span style={{ color: "#00a884" }}>You: </span>
+                      )}
+                      {t.lastText}
+                    </p>
+                    {unread > 0 && (
+                      <span
+                        className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold text-white"
+                        style={{ backgroundColor: "#00a884" }}
+                      >
+                        {unread}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Conversation */}
       <div className={`${activeThread ? "flex" : "hidden md:flex"} min-w-0 flex-1 flex-col`}>
         {!activeThread ? (
-          <div className="flex flex-1 items-center justify-center">
-            <p className="text-sm" style={{ color: "#8696a0" }}>Select a conversation.</p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            <div
+              className="flex h-20 w-20 items-center justify-center rounded-full"
+              style={{ backgroundColor: "#1f2c34" }}
+            >
+              <svg viewBox="0 0 24 24" className="h-10 w-10 fill-white/30">
+                <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Z" />
+              </svg>
+            </div>
+            <p className="text-sm" style={{ color: "#8696a0" }}>
+              Select a conversation to start messaging
+            </p>
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: "#1f2c34" }}>
+            <div className="flex items-center gap-3 px-4 py-2.5" style={{ backgroundColor: "#1f2c34" }}>
               <button
                 onClick={() => setActiveThread(null)}
                 className="rounded-full p-1.5 text-white/70 hover:bg-white/10 md:hidden"
@@ -294,7 +540,22 @@ export default function InboxPage() {
                   <path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2Z" />
                 </svg>
               </button>
-              <p className="text-[15px] font-medium text-white">{activeName}</p>
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-semibold text-white"
+                style={{ backgroundColor: avatarColor(activeThreadInfo?.name ?? "?") }}
+              >
+                {(activeThreadInfo?.name ?? "?").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-medium text-white">
+                  {activeThreadInfo?.name ?? "Chat"}
+                </p>
+                {activeStatus && (
+                  <p className="text-xs" style={{ color: activeStatus === "online" ? "#00a884" : "#8696a0" }}>
+                    {activeStatus}
+                  </p>
+                )}
+              </div>
             </div>
             <div
               className="flex-1 space-y-2 overflow-y-auto px-4 py-4"
@@ -308,42 +569,42 @@ export default function InboxPage() {
                 // Seen = the visitor opened the chat after this reply was sent
                 const seen = !m.fromVisitor && !!m.createdAt && seenAt > 0 && m.createdAt.toMillis() <= seenAt;
                 return (
-                <div key={m.id} className={`flex ${m.fromVisitor ? "justify-start" : "justify-end"}`}>
-                  <div
-                    className="max-w-[80%] rounded-lg px-3 py-2 text-sm text-white shadow"
-                    style={{
-                      backgroundColor: m.fromVisitor ? "#1f2c34" : "#005c4b",
-                      borderTopLeftRadius: m.fromVisitor ? 0 : undefined,
-                      borderTopRightRadius: m.fromVisitor ? undefined : 0,
-                    }}
-                  >
-                    {m.fromVisitor && (
-                      <p className="mb-0.5 text-xs font-medium" style={{ color: "#00a884" }}>
-                        {m.name}
-                      </p>
-                    )}
-                    <p className="whitespace-pre-wrap break-words">{m.text}</p>
-                    <p
-                      className="mt-1 flex items-center justify-end text-[10px]"
-                      style={{ color: "#8696a0" }}
+                  <div key={m.id} className={`flex ${m.fromVisitor ? "justify-start" : "justify-end"}`}>
+                    <div
+                      className="max-w-[80%] rounded-lg px-3 py-2 text-sm text-white shadow"
+                      style={{
+                        backgroundColor: m.fromVisitor ? "#1f2c34" : "#005c4b",
+                        borderTopLeftRadius: m.fromVisitor ? 0 : undefined,
+                        borderTopRightRadius: m.fromVisitor ? undefined : 0,
+                      }}
                     >
-                      {!m.fromVisitor && (
-                        <button
-                          onClick={() => deleteMessage(m.id)}
-                          className="mr-1 rounded p-0.5 text-white/30 hover:bg-white/10 hover:text-white"
-                          aria-label="Delete message"
-                          title="Delete message"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
-                            <path d="M6 7h12l-1 14H7L6 7Zm3-5h6l1 2h5v2H3V4h5l1-2Z" />
-                          </svg>
-                        </button>
+                      {m.fromVisitor && (
+                        <p className="mb-0.5 text-xs font-medium" style={{ color: "#00a884" }}>
+                          {m.name}
+                        </p>
                       )}
-                      {formatTime(m.createdAt)}
-                      {!m.fromVisitor && <Ticks read={seen} />}
-                    </p>
+                      <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                      <p
+                        className="mt-1 flex items-center justify-end text-[10px]"
+                        style={{ color: "#8696a0" }}
+                      >
+                        {!m.fromVisitor && (
+                          <button
+                            onClick={() => deleteMessage(m.id)}
+                            className="mr-1 rounded p-0.5 text-white/30 hover:bg-white/10 hover:text-white"
+                            aria-label="Delete message"
+                            title="Delete message"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-current">
+                              <path d="M6 7h12l-1 14H7L6 7Zm3-5h6l1 2h5v2H3V4h5l1-2Z" />
+                            </svg>
+                          </button>
+                        )}
+                        {formatTime(m.createdAt)}
+                        {!m.fromVisitor && <Ticks read={seen} />}
+                      </p>
+                    </div>
                   </div>
-                </div>
                 );
               })}
               <div ref={bottomRef} />
@@ -355,6 +616,7 @@ export default function InboxPage() {
                 onKeyDown={(e) => e.key === "Enter" && sendReply()}
                 placeholder="Type a reply"
                 maxLength={500}
+                enterKeyHint="send"
                 className="min-w-0 flex-1 rounded-full px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/40"
                 style={{ backgroundColor: "#2a3942" }}
               />
