@@ -9,6 +9,9 @@ import {
   limit,
   onSnapshot,
   serverTimestamp,
+  doc,
+  getDoc,
+  setDoc,
   type Timestamp,
 } from "firebase/firestore";
 import {
@@ -141,6 +144,26 @@ export default function ChatWidget() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, open]);
+
+  // Tell Anandh's inbox when the visitor has seen his replies: whenever the
+  // chat is open, record the newest owner message timestamp in thread_seen.
+  useEffect(() => {
+    if (!open || !user || !isFirebaseConfigured || !db) return;
+    const latestOwner = messages.reduce(
+      (max, m) => (!m.fromVisitor && m.createdAt ? Math.max(max, m.createdAt.toMillis()) : max),
+      0
+    );
+    if (!latestOwner) return;
+    const ref = doc(db, "thread_seen", user.uid);
+    getDoc(ref)
+      .then((snap) => {
+        const prev = snap.exists() ? (snap.data().ownerLastSeenAt?.toMillis() ?? 0) : 0;
+        if (latestOwner > prev) {
+          setDoc(ref, { ownerLastSeenAt: new Date(latestOwner) }, { merge: true }).catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, [messages, open, user]);
 
   // Keep the panel fitted to the visible area on mobile: when the keyboard
   // opens, the visual viewport shrinks — resize the panel so it sits right
