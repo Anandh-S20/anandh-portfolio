@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { collection, query, where, limit, getDocs } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 
-const GMAIL_USER = process.env.GMAIL_USER || "anandhsaji287@gmail.com";
+const GMAIL_USER = process.env.GMAIL_USER || "botser287@gmail.com";
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 
 export async function findVisitorEmail(
