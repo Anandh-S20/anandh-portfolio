@@ -317,7 +317,6 @@ export default function InboxPage() {
     const msg = text.trim();
     if (!msg || sending || !isFirebaseConfigured || !db || !activeThread) return;
     setSending(true);
-    setText("");
     try {
       await addDoc(collection(db, "portfolio_chats"), {
         threadId: activeThread,
@@ -326,6 +325,7 @@ export default function InboxPage() {
         fromVisitor: false,
         createdAt: serverTimestamp(),
       });
+      setText("");
       // Email the visitor about the reply (fire-and-forget)
       fetch("/api/chat/email-reply", {
         method: "POST",
@@ -333,7 +333,7 @@ export default function InboxPage() {
         body: JSON.stringify({ threadId: activeThread, text: msg }),
       }).catch(() => {});
     } catch {
-      /* retry */
+      alert("Couldn't send that message — check your connection and try again.");
     } finally {
       setSending(false);
     }
