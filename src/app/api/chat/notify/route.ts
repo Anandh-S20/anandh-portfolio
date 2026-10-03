@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { doc, updateDoc } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { adminDb } from "@/lib/firebaseAdmin";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
@@ -22,10 +21,11 @@ export async function POST(req: Request) {
     const data = await res.json();
     // Tag the chat message with its Telegram message id so /unsend can find it later
     const tgMessageId = data?.result?.message_id;
-    if (data.ok === true && tgMessageId && docId && isFirebaseConfigured && db) {
-      await updateDoc(doc(db, "portfolio_chats", docId), {
-        telegramMessageId: tgMessageId,
-      }).catch(() => {});
+    if (data.ok === true && tgMessageId && docId && adminDb) {
+      await adminDb
+        .doc(`portfolio_chats/${docId}`)
+        .update({ telegramMessageId: tgMessageId })
+        .catch(() => {});
     }
     return NextResponse.json({ ok: data.ok === true });
   } catch {
