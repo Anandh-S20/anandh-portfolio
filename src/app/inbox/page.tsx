@@ -350,6 +350,8 @@ export default function InboxPage() {
         createdAt: serverTimestamp(),
       });
       setText("");
+      // Record reply time so visitors see "last seen" = last reply
+      setDoc(doc(db, "presence", "owner"), { lastReplyAt: serverTimestamp() }, { merge: true }).catch(() => {});
       // Email the visitor about the reply (fire-and-forget)
       fetch("/api/chat/email-reply", {
         method: "POST",
