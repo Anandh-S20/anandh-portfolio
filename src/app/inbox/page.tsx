@@ -136,6 +136,12 @@ export default function InboxPage() {
         fromVisitor: false,
         createdAt: serverTimestamp(),
       });
+      // Email the visitor about the reply (fire-and-forget)
+      fetch("/api/chat/email-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadId: activeThread, text: msg }),
+      }).catch(() => {});
     } catch {
       /* retry */
     } finally {
