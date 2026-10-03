@@ -211,6 +211,40 @@ export default function ChatWidget() {
     return () => clearInterval(iv);
   }, [open, user]);
 
+  // Anandh's real presence: the inbox heartbeats presence/owner while open.
+  // "online" only if the heartbeat is fresh, otherwise "last seen …".
+  const [ownerLastSeenMs, setOwnerLastSeenMs] = useState(0);
+  const [, setNowTick] = useState(0);
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db) return;
+    const unsub = onSnapshot(
+      doc(db, "presence", "owner"),
+      (snap) => {
+        const ts = snap.data()?.lastSeen as Timestamp | undefined;
+        setOwnerLastSeenMs(ts?.toMillis?.() ?? 0);
+      },
+      () => setOwnerLastSeenMs(0)
+    );
+    return unsub;
+  }, []);
+  useEffect(() => {
+    const iv = setInterval(() => setNowTick((n) => n + 1), 30000);
+    return () => clearInterval(iv);
+  }, []);
+  const ownerPresence = ((): { label: string; online: boolean } => {
+    if (!ownerLastSeenMs) return { label: "", online: false };
+    const age = Date.now() - ownerLastSeenMs;
+    if (age < 120000) return { label: "online", online: true };
+    const d = new Date(ownerLastSeenMs);
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const dayLabel = sameDay ? "today" : d.toDateString() === yesterday.toDateString() ? "yesterday" : d.toLocaleDateString();
+    return { label: `last seen ${dayLabel} at ${time}`, online: false };
+  })();
+
   // Tell Anandh's inbox when the visitor has seen his replies: whenever the
   // chat is open, record the newest owner message timestamp in thread_seen.
   useEffect(() => {
@@ -343,8 +377,12 @@ export default function ChatWidget() {
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-[15px] font-medium text-white">Anandh S</p>
-              <p className="text-xs" style={{ color: "#8696a0" }}>
-                {!isFirebaseConfigured ? "setting up…" : user ? "online" : "sign in to chat"}
+              <p className="text-xs" style={{ color: ownerPresence.online ? "#00a884" : "#8696a0" }}>
+                {!isFirebaseConfigured
+                  ? "setting up…"
+                  : !user
+                    ? "sign in to chat"
+                    : ownerPresence.label}
               </p>
             </div>
             {user && pushState !== "unsupported" && (
