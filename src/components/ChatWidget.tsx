@@ -194,9 +194,9 @@ export default function ChatWidget() {
       await disablePush(kind);
       setPushState("off");
     } else {
-      const ok = await enablePush(kind, () => user.getIdToken());
-      setPushState(ok ? "on" : "off");
-      if (!ok) alert("Couldn't enable notifications — check the browser permission and try again.");
+      const r = await enablePush(kind, () => user.getIdToken());
+      setPushState(r.ok ? "on" : "off");
+      if (!r.ok) alert(`Couldn't enable notifications (${r.reason}).`);
     }
   };
 
