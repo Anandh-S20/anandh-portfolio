@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     if (!visitor) {
       return NextResponse.json({ ok: false, reason: "no-email" });
     }
-    const ok = await sendReplyEmail(visitor.email, visitor.name, text);
+    const ok = await sendReplyEmail(threadId, visitor.email, visitor.name, text);
     return NextResponse.json({ ok });
   } catch {
     return NextResponse.json({ ok: false }, { status: 500 });
