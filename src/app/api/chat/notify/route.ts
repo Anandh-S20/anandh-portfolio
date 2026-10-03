@@ -1,33 +1,23 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-
+/** Remove a push subscription (no auth needed — endpoint is unguessable). */
 export async function POST(req: Request) {
   try {
-    const { threadId, name, text, docId } = await req.json();
-    if (!BOT_TOKEN || !CHAT_ID || !threadId || !text) {
-      return NextResponse.json({ ok: false }, { status: 400 });
+    if (!adminDb) return NextResponse.json({ ok: false }, { status: 500 });
+    const { endpoint } = await req.json();
+    if (!endpoint) return NextResponse.json({ ok: false }, { status: 400 });
+    const snap = await adminDb
+      .collection("push_subscriptions")
+      .where("endpoint", "==", endpoint)
+      .get()
+      .catch(() => null);
+    if (snap) {
+      for (const d of snap.docs) {
+        await adminDb.doc(`push_subscriptions/${d.id}`).delete().catch(() => {});
+      }
     }
-    const message =
-      `New portfolio chat message\n\nFrom: ${name}\n${text}\n\n` +
-      `[thread:${threadId}] — reply to respond · reply /seen to check if read · reply /unsend to delete a message`;
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: CHAT_ID, text: message }),
-    });
-    const data = await res.json();
-    // Tag the chat message with its Telegram message id so /unsend can find it later
-    const tgMessageId = data?.result?.message_id;
-    if (data.ok === true && tgMessageId && docId && adminDb) {
-      await adminDb
-        .doc(`portfolio_chats/${docId}`)
-        .update({ telegramMessageId: tgMessageId })
-        .catch(() => {});
-    }
-    return NextResponse.json({ ok: data.ok === true });
+    return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: false }, { status: 500 });
   }
