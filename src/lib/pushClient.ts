@@ -35,33 +35,55 @@ export async function getPushState(): Promise<"on" | "off" | "unsupported"> {
 export async function enablePush(
   kind: string,
   getIdToken: () => Promise<string>
-): Promise<boolean> {
-  if (!pushSupported()) return false;
+): Promise<{ ok: boolean; reason?: string }> {
+  if (!pushSupported()) return { ok: false, reason: "unsupported" };
   try {
     const perm = await Notification.requestPermission();
-    if (perm !== "granted") return false;
-    const reg =
-      (await navigator.serviceWorker.getRegistration()) ||
-      (await navigator.serviceWorker.register("/sw.js"));
+    if (perm !== "granted") return { ok: false, reason: "permission-" + perm };
+    let reg: ServiceWorkerRegistration | undefined;
+    try {
+      reg =
+        (await navigator.serviceWorker.getRegistration()) ||
+        (await navigator.serviceWorker.register("/sw.js"));
+    } catch {
+      return { ok: false, reason: "sw-register-failed" };
+    }
     const pubKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!pubKey) return false;
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(pubKey) as BufferSource,
-    });
-    const idToken = await getIdToken();
-    const res = await fetch("/api/push/subscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subscription: sub.toJSON(), kind, idToken }),
-    });
+    if (!pubKey) return { ok: false, reason: "no-vapid-key" };
+    let sub: PushSubscription;
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(pubKey) as BufferSource,
+      });
+    } catch {
+      return { ok: false, reason: "push-subscribe-failed" };
+    }
+    let idToken: string;
+    try {
+      idToken = await getIdToken();
+    } catch {
+      await sub.unsubscribe().catch(() => {});
+      return { ok: false, reason: "id-token-failed" };
+    }
+    let res: Response;
+    try {
+      res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON(), kind, idToken }),
+      });
+    } catch {
+      await sub.unsubscribe().catch(() => {});
+      return { ok: false, reason: "server-unreachable" };
+    }
     if (!res.ok) {
       await sub.unsubscribe().catch(() => {});
-      return false;
+      return { ok: false, reason: "server-" + res.status };
     }
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, reason: "unknown" };
   }
 }
 
