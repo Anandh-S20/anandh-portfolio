@@ -45,6 +45,13 @@ export async function enablePush(
       reg =
         (await navigator.serviceWorker.getRegistration()) ||
         (await navigator.serviceWorker.register("/sw.js"));
+      // Android Chrome can reject subscribe() while the worker is still
+      // installing — wait until it's active, and clear any stale subscription.
+      await navigator.serviceWorker.ready.catch(() => {});
+      if (reg) {
+        const stale = await reg.pushManager.getSubscription().catch(() => null);
+        if (stale) await stale.unsubscribe().catch(() => {});
+      }
     } catch {
       return { ok: false, reason: "sw-register-failed" };
     }
