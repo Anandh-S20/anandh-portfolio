@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { collection, addDoc, serverTimestamp, query, where, getDocs, deleteDoc, doc, getDoc, limit } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { adminDb, adminServerTimestamp } from "@/lib/firebaseAdmin";
 import { findVisitorEmail, sendReplyEmail } from "@/lib/sendReplyEmail";
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -29,6 +28,7 @@ async function tgSend(text: string, replyToMessageId?: number): Promise<void> {
  * sees it in the portfolio chat widget.
  *
  * Replying "/unsend" to a message deletes it from the chat as well.
+ * Replying "/seen" checks whether the visitor has seen the reply.
  */
 export async function POST(req: Request) {
   try {
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const text = msg?.text as string | undefined;
 
     const match = replyTo?.match(/\[thread:([^\]]+)\]/);
-    if (!text || !isFirebaseConfigured || !db) {
+    if (!text || !adminDb) {
       return NextResponse.json({ ok: true });
     }
 
@@ -51,12 +51,14 @@ export async function POST(req: Request) {
         await tgSend("Reply /unsend to the message you want to delete from the chat.", msg?.message_id);
         return NextResponse.json({ ok: true });
       }
-      const snap = await getDocs(
-        query(collection(db, "portfolio_chats"), where("telegramMessageId", "==", targetTgId))
-      ).catch(() => null);
+      const snap = await adminDb
+        .collection("portfolio_chats")
+        .where("telegramMessageId", "==", targetTgId)
+        .get()
+        .catch(() => null);
       if (snap && !snap.empty) {
         for (const d of snap.docs) {
-          await deleteDoc(doc(db, "portfolio_chats", d.id)).catch(() => {});
+          await adminDb.doc(`portfolio_chats/${d.id}`).delete().catch(() => {});
         }
         await tgSend("Deleted from the chat ✅", msg?.message_id);
       } else {
@@ -73,9 +75,12 @@ export async function POST(req: Request) {
         // look up which thread that message belongs to.
         const targetTgId = (msg?.reply_to_message as { message_id?: number } | undefined)?.message_id;
         if (targetTgId) {
-          const found = await getDocs(
-            query(collection(db, "portfolio_chats"), where("telegramMessageId", "==", targetTgId), limit(1))
-          ).catch(() => null);
+          const found = await adminDb
+            .collection("portfolio_chats")
+            .where("telegramMessageId", "==", targetTgId)
+            .limit(1)
+            .get()
+            .catch(() => null);
           const d = found?.docs[0];
           if (d) seenThreadId = (d.data() as { threadId?: string }).threadId ?? null;
         }
@@ -84,11 +89,16 @@ export async function POST(req: Request) {
         await tgSend("Reply /seen to a chat notification to check if the visitor saw your reply.", msg?.message_id);
         return NextResponse.json({ ok: true });
       }
-      const seenSnap = await getDoc(doc(db, "thread_seen", seenThreadId)).catch(() => null);
-      const seenAt = seenSnap?.exists() ? (seenSnap.data().ownerLastSeenAt?.toMillis() ?? 0) : 0;
-      const threadSnap = await getDocs(
-        query(collection(db, "portfolio_chats"), where("threadId", "==", seenThreadId), limit(100))
-      ).catch(() => null);
+      const seenSnap = await adminDb.doc(`thread_seen/${seenThreadId}`).get().catch(() => null);
+      const seenAt = seenSnap?.exists
+        ? (((seenSnap.data()?.ownerLastSeenAt as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0))
+        : 0;
+      const threadSnap = await adminDb
+        .collection("portfolio_chats")
+        .where("threadId", "==", seenThreadId)
+        .limit(100)
+        .get()
+        .catch(() => null);
       let visitorName = "The visitor";
       let latestOwnerAt = 0;
       if (threadSnap) {
@@ -115,12 +125,12 @@ export async function POST(req: Request) {
     }
 
     const threadId = match[1];
-    await addDoc(collection(db, "portfolio_chats"), {
+    await adminDb.collection("portfolio_chats").add({
       threadId,
       name: "Anandh",
       text,
       fromVisitor: false,
-      createdAt: serverTimestamp(),
+      createdAt: adminServerTimestamp(),
       telegramMessageId: msg?.message_id,
     });
     // Email the visitor about the reply (fire-and-forget)
