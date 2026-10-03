@@ -308,9 +308,9 @@ export default function InboxPage() {
       await disablePush("owner");
       setPushState("off");
     } else {
-      const ok = await enablePush("owner", () => cu.getIdToken());
-      setPushState(ok ? "on" : "off");
-      if (!ok) alert("Couldn't enable notifications — check the browser permission and try again.");
+      const r = await enablePush("owner", () => cu.getIdToken());
+      setPushState(r.ok ? "on" : "off");
+      if (!r.ok) alert(`Couldn't enable notifications (${r.reason}).`);
     }
   };
 
