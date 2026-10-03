@@ -102,6 +102,15 @@ export default function ChatWidget() {
     return unsub;
   }, []);
 
+  // Auto-open the chat when arriving via a #chat link (e.g. from email)
+  useEffect(() => {
+    try {
+      if (window.location.hash === "#chat") setOpen(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     if (!open || !user || !isFirebaseConfigured || !db) return;
     // NOTE: no orderBy here — a where()+orderBy() combo needs a composite
@@ -164,6 +173,7 @@ export default function ChatWidget() {
       await addDoc(collection(db, "portfolio_chats"), {
         threadId: user.uid,
         name,
+        email: user.email || "",
         text: msg,
         fromVisitor: true,
         createdAt: serverTimestamp(),
