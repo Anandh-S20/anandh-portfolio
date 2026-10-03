@@ -25,32 +25,39 @@ export async function sendReplyEmail(
 ): Promise<boolean> {
   if (!SENDGRID_KEY || !to) return false;
   const chatUrl = "https://anandhs-portfolio.vercel.app/#chat";
+  const safeName = visitorName
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   const safeReply = replyText
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\n/g, "<br>");
   const html = `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background-color:#f0f2f5;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f2f5;padding:24px 12px;">
+<html><body style="margin:0;padding:0;background-color:#f4f6f8;font-family:Arial,Helvetica,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Anandh S has sent you a new message. Open the chat to reply.</div>
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f8;padding:32px 12px;">
 <tr><td align="center">
-<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border-radius:12px;overflow:hidden;">
-<tr><td style="background-color:#00a884;padding:20px 24px;">
-<span style="color:#ffffff;font-size:20px;font-weight:bold;">Anandh S</span><br>
-<span style="color:#e8f5f0;font-size:13px;">Portfolio chat</span>
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #e6e8eb;">
+<tr><td style="background-color:#111b21;padding:22px 28px;">
+<span style="color:#ffffff;font-size:19px;font-weight:bold;letter-spacing:0.3px;">Anandh S</span><br>
+<span style="color:#9aa5b1;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">IT Administrator &nbsp;·&nbsp; Portfolio</span>
 </td></tr>
-<tr><td style="padding:24px;">
-<p style="color:#111b21;font-size:16px;margin:0 0 4px;">Hi ${visitorName},</p>
-<p style="color:#54656f;font-size:14px;margin:0 0 16px;">You have a new reply:</p>
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="background-color:#e7fce3;border-radius:8px;padding:14px 16px;">
-<p style="color:#111b21;font-size:14px;margin:0;">${safeReply}</p>
+<tr><td style="padding:28px;">
+<p style="color:#111b21;font-size:17px;font-weight:bold;margin:0 0 6px;">You have a new message</p>
+<p style="color:#54656f;font-size:14px;margin:0 0 20px;">Hi ${safeName}, Anandh has replied to your message:</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr>
+<td style="width:3px;background-color:#00a884;border-radius:2px;"></td>
+<td style="background-color:#f7f9fa;border-radius:0 8px 8px 0;padding:16px 18px;">
+<p style="color:#111b21;font-size:14px;line-height:1.6;margin:0;">${safeReply}</p>
 </td></tr></table>
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 0 8px;">
-<a href="${chatUrl}" style="display:inline-block;background-color:#00a884;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:12px 40px;border-radius:24px;">Open Chat</a>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:26px 0 6px;">
+<a href="${chatUrl}" style="display:inline-block;background-color:#00a884;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;padding:13px 44px;border-radius:6px;">Reply in Chat</a>
 </td></tr></table>
 </td></tr>
-<tr><td style="padding:0 24px 20px;">
-<p style="color:#8696a0;font-size:12px;margin:0;">This email was sent because you chatted on Anandh's portfolio. <a href="${chatUrl}" style="color:#00a884;">Continue the conversation here</a>.</p>
+<tr><td style="padding:0 28px 24px;">
+<p style="color:#8696a0;font-size:12px;line-height:1.6;margin:0;">You are receiving this email because you started a conversation on <a href="https://anandhs-portfolio.vercel.app/" style="color:#00a884;text-decoration:none;">Anandh's portfolio</a>. Your chat history is saved to your Google account.</p>
 </td></tr>
 </table>
 </td></tr>
@@ -66,15 +73,15 @@ export async function sendReplyEmail(
       body: JSON.stringify({
         personalizations: [{ to: [{ email: to }] }],
         from: { email: FROM_EMAIL, name: "Anandh S" },
-        subject: "Anandh replied to your message",
+        subject: "You have a new message from Anandh",
         content: [
           {
             type: "text/plain",
             value:
               `Hi ${visitorName},\n\n` +
-              `Anandh replied to your message on his portfolio:\n\n` +
+              `You have a new message from Anandh:\n\n` +
               `"${replyText}"\n\n` +
-              `Open the chat to continue the conversation: ${chatUrl}`,
+              `Reply in the chat: ${chatUrl}`,
           },
           { type: "text/html", value: html },
         ],
