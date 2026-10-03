@@ -142,6 +142,8 @@ export async function POST(req: Request) {
       createdAt: adminServerTimestamp(),
       telegramMessageId: msg?.message_id,
     });
+    // Record reply time so visitors see "last seen" = last reply
+    await adminDb.doc("presence/owner").set({ lastReplyAt: adminServerTimestamp() }, { merge: true }).catch(() => {});
     // Push-notify the visitor (fire-and-forget)
     pushToVisitor(threadId, text).catch(() => {});
     // Email the visitor about the reply (fire-and-forget)
