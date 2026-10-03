@@ -102,6 +102,19 @@ export default function ChatWidget() {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthReady(true);
+      // Link the signed-in identity to this visit's analytics row (no email)
+      try {
+        const vid = sessionStorage.getItem("pv_vid");
+        if (u && vid) {
+          fetch("/api/visit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ updateId: vid, uid: u.uid, name: u.displayName || "" }),
+          }).catch(() => {});
+        }
+      } catch {
+        /* ignore */
+      }
     });
     return unsub;
   }, []);
