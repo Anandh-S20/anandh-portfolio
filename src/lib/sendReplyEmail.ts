@@ -1,8 +1,9 @@
+import nodemailer from "nodemailer";
 import { collection, query, where, limit, getDocs } from "firebase/firestore";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 
-const SENDGRID_KEY = process.env.SENDGRID_API_KEY;
-const FROM_EMAIL = "anandhsaji287@gmail.com";
+const GMAIL_USER = process.env.GMAIL_USER || "anandhsaji287@gmail.com";
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 
 export async function findVisitorEmail(
   threadId: string
@@ -23,7 +24,7 @@ export async function sendReplyEmail(
   visitorName: string,
   replyText: string
 ): Promise<boolean> {
-  if (!SENDGRID_KEY || !to) return false;
+  if (!GMAIL_APP_PASSWORD || !to) return false;
   const chatUrl = "https://anandhs-portfolio.vercel.app/#chat";
   const safeName = visitorName
     .replace(/&/g, "&amp;")
@@ -64,30 +65,22 @@ export async function sendReplyEmail(
 </table>
 </body></html>`;
   try {
-    const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SENDGRID_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: FROM_EMAIL, name: "Anandh S" },
-        subject: "You have a new message from Anandh",
-        content: [
-          {
-            type: "text/plain",
-            value:
-              `Hi ${visitorName},\n\n` +
-              `You have a new message from Anandh:\n\n` +
-              `"${replyText}"\n\n` +
-              `Reply in the chat: ${chatUrl}`,
-          },
-          { type: "text/html", value: html },
-        ],
-      }),
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
     });
-    return res.ok;
+    await transporter.sendMail({
+      from: `"Anandh S" <${GMAIL_USER}>`,
+      to,
+      subject: "You have a new message from Anandh",
+      text:
+        `Hi ${visitorName},\n\n` +
+        `You have a new message from Anandh:\n\n` +
+        `"${replyText}"\n\n` +
+        `Reply in the chat: ${chatUrl}`,
+      html,
+    });
+    return true;
   } catch {
     return false;
   }
