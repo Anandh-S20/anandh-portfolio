@@ -15,10 +15,16 @@ export async function POST(req: Request) {
     if (!subscription?.endpoint || !subscription?.keys || typeof kind !== "string" || !idToken) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
-    const decoded = await import("firebase-admin/auth")
-      .then((m) => m.getAuth().verifyIdToken(idToken))
-      .catch(() => null);
-    if (!decoded) return NextResponse.json({ ok: false }, { status: 401 });
+    let verifyError = "unknown";
+    let decoded: any = null;
+    try {
+      const m = await import("firebase-admin/auth");
+      decoded = await m.getAuth().verifyIdToken(idToken);
+    } catch (e: any) {
+      // Error code only (no secrets) — surfaced for diagnostics
+      verifyError = String(e?.code || e?.message || "unknown").slice(0, 100);
+    }
+    if (!decoded) return NextResponse.json({ ok: false, code: verifyError }, { status: 401 });
     if (kind === "owner") {
       if (decoded.email !== OWNER_EMAIL) return NextResponse.json({ ok: false }, { status: 403 });
     } else if (decoded.uid !== kind) {
