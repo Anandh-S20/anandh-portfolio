@@ -28,8 +28,9 @@ export async function POST(req: Request) {
       createdAt: serverTimestamp(),
     });
     // Email the visitor about the reply (fire-and-forget)
-    findVisitorEmail(match[1]).then((visitor) => {
-      if (visitor) sendReplyEmail(visitor.email, visitor.name, text).catch(() => {});
+    const threadId = match[1];
+    findVisitorEmail(threadId).then((visitor) => {
+      if (visitor) sendReplyEmail(threadId, visitor.email, visitor.name, text).catch(() => {});
     }).catch(() => {});
     return NextResponse.json({ ok: true });
   } catch {
