@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { adminDb, adminServerTimestamp } from "@/lib/firebaseAdmin";
 
 function header(req: Request, name: string): string {
   return req.headers.get(name) || "";
@@ -35,17 +34,20 @@ function parseUA(ua: string): { browser: string; os: string; device: string } {
  */
 export async function POST(req: Request) {
   try {
-    if (!isFirebaseConfigured || !db) {
+    if (!adminDb) {
       return NextResponse.json({ ok: false }, { status: 500 });
     }
     const body = await req.json();
 
     // Identity enrichment for an existing visit row
     if (body.updateId && typeof body.updateId === "string") {
-      await updateDoc(doc(db, "site_visits", body.updateId), {
-        uid: String(body.uid || "").slice(0, 128),
-        name: String(body.name || "").slice(0, 128),
-      }).catch(() => {});
+      await adminDb
+        .doc(`site_visits/${body.updateId}`)
+        .update({
+          uid: String(body.uid || "").slice(0, 128),
+          name: String(body.name || "").slice(0, 128),
+        })
+        .catch(() => {});
       return NextResponse.json({ ok: true });
     }
 
@@ -60,8 +62,8 @@ export async function POST(req: Request) {
       /* keep raw */
     }
 
-    const ref = await addDoc(collection(db, "site_visits"), {
-      createdAt: serverTimestamp(),
+    const ref = await adminDb.collection("site_visits").add({
+      createdAt: adminServerTimestamp(),
       sessionId: String(body.sessionId || "").slice(0, 64),
       path: String(body.path || "/").slice(0, 200),
       referrer: String(body.referrer || "").slice(0, 500),
