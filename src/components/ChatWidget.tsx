@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { enablePush, disablePush, getPushState, pushSupported, playPop } from "@/lib/pushClient";
 import {
   collection,
@@ -302,6 +303,11 @@ export default function ChatWidget() {
   };
 
   const displayName = user?.displayName || user?.email || "you";
+
+  // The inbox page has its own full messaging UI — don't overlay the
+  // floating visitor chat button on top of it.
+  const pathname = usePathname();
+  if (pathname?.startsWith("/inbox")) return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-[100] flex flex-col items-end max-sm:bottom-3 max-sm:left-3 max-sm:right-3">
