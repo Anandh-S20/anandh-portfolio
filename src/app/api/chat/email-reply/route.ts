@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { findVisitorEmail, sendReplyEmail } from "@/lib/sendReplyEmail";
+import { pushToVisitor } from "@/lib/sendPush";
 
 /**
  * Called when Anandh replies from the inbox.
- * Looks up the visitor's email and notifies them.
+ * Looks up the visitor's email and notifies them (email + push).
  */
 export async function POST(req: Request) {
   try {
@@ -11,6 +12,7 @@ export async function POST(req: Request) {
     if (!threadId || !text) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
+    pushToVisitor(threadId, text).catch(() => {});
     const visitor = await findVisitorEmail(threadId);
     if (!visitor) {
       return NextResponse.json({ ok: false, reason: "no-email" });
